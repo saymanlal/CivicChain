@@ -1,0 +1,19 @@
+{
+    "name": "crowdpulse",
+    "version": "1.0.0",
+    "description": "CrowdPulse — Decentralized Civic Intelligence on SAYMAN Blockchain",
+    "type": "module",
+    "scripts": {
+        "deploy:local": "node scripts/deploy.js --network local",
+        "deploy:testnet": "node scripts/deploy.js --network testnet",
+        "deploy:mainnet": "node scripts/deploy.js --network mainnet",
+        "backend": "node backend/index.js",
+        "dev": "SAYMAN_RPC=http://localhost:10000 node backend/index.js"
+    },
+    "dependencies": {
+        "cors": "^2.8.5",
+        "dotenv": "^17.4.2",
+        "elliptic": "^6.5.4",
+        "express": "^4.18.2"
+    }
+}

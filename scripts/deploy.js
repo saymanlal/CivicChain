@@ -1,59 +1,54 @@
-/**
- * crowdpulse/scripts/deploy.js
- *
- * Deploys all CrowdPulse contracts to SAYMAN testnet or mainnet.
- *
- * Usage:
- *   node scripts/deploy.js --network testnet
- *   node scripts/deploy.js --network mainnet
- *   node scripts/deploy.js --network local
- *
- * Requires env vars:
- *   DEPLOYER_PRIVATE_KEY   — hex private key of deployer wallet
- *   SAYMAN_RPC_URL         — optional override (default: see NETWORKS below)
- */
-
-import fs   from 'fs';
-import path from 'path';
+import 'dotenv/config';
+import fs      from 'fs';
+import path    from 'path';
+import crypto  from 'crypto';
+import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
-import elliptic from 'elliptic';
-import crypto   from 'crypto';
 
-const EC = elliptic.ec;
-const ec = new EC('secp256k1');
+const require  = createRequire(import.meta.url);
+const elliptic = require('elliptic');
+const ec       = new elliptic.ec('secp256k1');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// ─── Network config ──────────────────────────────────────────────────────────
 
 const NETWORKS = {
   local:   'http://localhost:10000',
-  testnet: 'https://sayman-public-testnet-1.onrender.com',
+  testnet: 'https://sayman.onrender.com',
   mainnet: 'https://mainnet.sayman.io'
 };
 
-// ─── Parse CLI args ───────────────────────────────────────────────────────────
-
-const args    = process.argv.slice(2);
-const netFlag = args.indexOf('--network');
-const network = netFlag !== -1 ? args[netFlag + 1] : 'local';
+const argv    = process.argv.slice(2);
+const netIdx  = argv.indexOf('--network');
+const network = netIdx !== -1 ? argv[netIdx + 1] : 'local';
 const RPC_URL = process.env.SAYMAN_RPC_URL || NETWORKS[network];
 
 if (!RPC_URL) {
-  console.error(`Unknown network: ${network}. Use local | testnet | mainnet`);
+  console.error(`❌ Unknown network: "${network}". Use: local | testnet | mainnet`);
   process.exit(1);
 }
 
-// ─── Wallet from env ──────────────────────────────────────────────────────────
+// ─── Wallet ───────────────────────────────────────────────────────────────────
+const DEFAULT_KEY = crypto.createHash('sha256').update('crowdpulse-dev-deployer-2024').digest('hex');
+const PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY || DEFAULT_KEY;
 
-const PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY ||
-  // Dev fallback — never use in production
-  crypto.createHash('sha256').update('crowdpulse-dev-deployer').digest('hex');
+let keyPair, publicKey, address;
+try {
+  keyPair   = ec.keyFromPrivate(PRIVATE_KEY);
+  publicKey = keyPair.getPublic('hex');
+  address   = crypto.createHash('sha256').update(publicKey).digest('hex').substring(0, 40);
+} catch (err) {
+  console.error('❌ Invalid DEPLOYER_PRIVATE_KEY:', err.message);
+  process.exit(1);
+}
 
-const keyPair    = ec.keyFromPrivate(PRIVATE_KEY);
-const publicKey  = keyPair.getPublic('hex');
-const address    = crypto.createHash('sha256').update(publicKey).digest('hex').substring(0, 40);
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── HTTP ─────────────────────────────────────────────────────────────────────
+async function rpcGet(endpoint) {
+  const res  = await fetch(`${RPC_URL}${endpoint}`);
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = { error: text }; }
+  if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+  return data;
+}
 
 async function rpcPost(endpoint, body) {
   const res  = await fetch(`${RPC_URL}${endpoint}`, {
@@ -61,170 +56,241 @@ async function rpcPost(endpoint, body) {
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(body)
   });
-  const data = await res.json();
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = { error: text }; }
   if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
   return data;
 }
 
-async function rpcGet(endpoint) {
-  const res  = await fetch(`${RPC_URL}${endpoint}`);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
-  return data;
+// ─── Chain helpers ────────────────────────────────────────────────────────────
+async function getAddressInfo() {
+  try { return await rpcGet(`/api/address/${address}`); } catch {}
+  try { const d = await rpcGet(`/api/balance/${address}`); return { balance: d.balance || 0, nonce: 0 }; } catch {}
+  return { balance: 0, nonce: 0 };
 }
 
+async function getNonce()   { return (await getAddressInfo()).nonce   || 0; }
+async function getBalance() { return (await getAddressInfo()).balance || 0; }
+
+async function requestFaucet() {
+  try { return await rpcPost('/api/faucet', { address }); }
+  catch (err) { return { error: err.message }; }
+}
+
+async function waitForBlock(currentHeight, maxWait = 60000) {
+  const start = Date.now();
+  while (Date.now() - start < maxWait) {
+    try {
+      const s = await rpcGet('/api/stats');
+      if ((s.blocks || 0) > currentHeight) return s.blocks;
+    } catch {}
+    await new Promise(r => setTimeout(r, 3000));
+  }
+  return null;
+}
+
+// ─── Sign ─────────────────────────────────────────────────────────────────────
 function signTx(tx) {
-  const str  = JSON.stringify({
+  const hash = crypto.createHash('sha256').update(JSON.stringify({
+    type: tx.type, timestamp: tx.timestamp, data: tx.data,
+    gasLimit: tx.gasLimit, gasPrice: tx.gasPrice, nonce: tx.nonce
+  })).digest('hex');
+  return keyPair.sign(hash).toDER('hex');
+}
+
+// ─── Deploy one contract ──────────────────────────────────────────────────────
+// gasLimit = 90 → maxCost = 90 SAYM (you have 100), actual cost ~9 SAYM
+async function deployContract({ name, version, code, nonce }) {
+  const ts = Date.now();
+  const tx = {
+    type:      'CONTRACT_DEPLOY',
+    timestamp: ts,
+    nonce,
+    gasLimit:  90,
+    gasPrice:  1,
+    data: { from: address, name, version, abi: [], code }
+  };
+  tx.signature = signTx(tx);
+
+  await rpcPost('/api/broadcast', {
     type:      tx.type,
-    timestamp: tx.timestamp,
     data:      tx.data,
+    timestamp: tx.timestamp,
+    signature: tx.signature,
+    publicKey,
     gasLimit:  tx.gasLimit,
     gasPrice:  tx.gasPrice,
     nonce:     tx.nonce
   });
-  const hash = crypto.createHash('sha256').update(str).digest('hex');
-  return keyPair.sign(hash).toDER('hex');
-}
 
-async function getNonce() {
-  try {
-    const data = await rpcGet(`/api/account/${address}`);
-    return data.nonce || 0;
-  } catch {
-    return 0;
-  }
-}
+  const contractAddress = crypto.createHash('sha256')
+    .update(address + ts.toString()).digest('hex').substring(0, 40);
 
-async function deployContract(name, version, code, nonce) {
-  const tx = {
-    id:        crypto.randomUUID(),
-    type:      'CONTRACT_DEPLOY',
-    timestamp: Date.now(),
-    nonce,
-    gasLimit:  200000,
-    gasPrice:  1,
-    data: {
-      from: address,
-      name,
-      version,
-      abi:  [],
-      code
-    },
-    gasUsed: 0
-  };
-
-  tx.signature = signTx(tx);
-
-  const result = await rpcPost('/api/transactions', {
-    transaction: tx,
-    publicKey
-  });
-
-  return result;
+  return contractAddress;
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-
 async function main() {
   console.log('');
-  console.log('╔══════════════════════════════════════╗');
-  console.log('║  CrowdPulse Contract Deployer v1.0   ║');
-  console.log('╚══════════════════════════════════════╝');
+  console.log('╔══════════════════════════════════════════╗');
+  console.log('║   CrowdPulse Contract Deployer  v1.0     ║');
+  console.log('╚══════════════════════════════════════════╝');
   console.log('');
-  console.log(`Network:   ${network}`);
-  console.log(`RPC:       ${RPC_URL}`);
-  console.log(`Deployer:  ${address}`);
-  console.log('');
+  console.log(`  Network  : ${network}`);
+  console.log(`  RPC      : ${RPC_URL}`);
+  console.log(`  Deployer : ${address}`);
 
-  // Check balance
+  // Check chain
+  let chainHeight = 0;
   try {
-    const account = await rpcGet(`/api/account/${address}`);
-    console.log(`Balance:   ${account.balance || 0} SAYM`);
-    console.log('');
-  } catch {
-    console.log('⚠ Could not fetch balance — continuing anyway\n');
+    const stats = await rpcGet('/api/stats');
+    chainHeight = stats.blocks || 0;
+    console.log(`  Chain    : ✅ reachable (block #${chainHeight})`);
+  } catch (err) {
+    console.log(`  Chain    : ❌ unreachable — ${err.message}`);
+    process.exit(1);
   }
 
+  // Check balance — auto faucet if 0
+  let balance = await getBalance();
+  console.log(`  Balance  : ${balance} SAYM`);
+
+  if (balance < 10) {
+    process.stdout.write('  Faucet   : requesting SAYM... ');
+    const r = await requestFaucet();
+    if (r && !r.error) {
+      await waitForBlock(chainHeight, 20000);
+      chainHeight = (await rpcGet('/api/stats')).blocks || chainHeight;
+      balance = await getBalance();
+      console.log(`funded ✅ (balance: ${balance} SAYM)`);
+    } else {
+      console.log(`failed ⚠ (${r?.error || 'unknown'})`);
+      console.log(`\n  Fund this address and re-run:\n  ${address}\n`);
+      process.exit(1);
+    }
+  }
+
+  console.log('');
+
+  // Contract list
   const contractsDir = path.join(__dirname, '..', 'contracts');
   const contracts = [
-    { file: 'ReportRegistry.js',   name: 'ReportRegistry',   version: '1.0.0' },
+    { file: 'ReportRegistry.js',    name: 'ReportRegistry',    version: '1.0.0' },
     { file: 'ReputationManager.js', name: 'ReputationManager', version: '1.0.0' },
-    { file: 'RewardManager.js',    name: 'RewardManager',    version: '1.0.0' }
+    { file: 'RewardManager.js',     name: 'RewardManager',     version: '1.0.0' }
   ];
 
-  const deployed = {};
+  for (const c of contracts) {
+    if (!fs.existsSync(path.join(contractsDir, c.file))) {
+      console.error(`❌ Missing file: contracts/${c.file}`);
+      process.exit(1);
+    }
+  }
+
   let nonce = await getNonce();
+  console.log(`  Nonce    : ${nonce}`);
+  console.log(`  Gas      : limit=90 price=1 (max cost 90 SAYM, actual ~9 SAYM each)`);
+  console.log('');
+
+  // Send ALL transactions immediately with sequential nonces
+  // so they all land in the same block — no nonce race condition
+  const deployed = {};
 
   for (const c of contracts) {
-    const codePath = path.join(contractsDir, c.file);
+    const code     = fs.readFileSync(path.join(contractsDir, c.file), 'utf8');
+    const codeSize = (code.length / 1024).toFixed(1);
 
-    if (!fs.existsSync(codePath)) {
-      console.error(`❌ Contract file not found: ${codePath}`);
-      continue;
-    }
-
-    const code = fs.readFileSync(codePath, 'utf8');
-
-    process.stdout.write(`Deploying ${c.name}...`);
+    process.stdout.write(`  Sending   ${c.name.padEnd(22)} (${codeSize}kb) nonce=${nonce}... `);
 
     try {
-      const result = await deployContract(c.name, c.version, code, nonce);
-
-      // Wait for block to be mined (simple poll)
-      await new Promise(r => setTimeout(r, 4000));
-
-      // Try to get the contract address from explorer
-      let contractAddress = result.contractAddress || null;
-
-      if (!contractAddress) {
-        // Compute expected address (matches ContractEngine.generateContractAddress)
-        const ts   = result.timestamp || Date.now();
-        contractAddress = crypto.createHash('sha256')
-          .update(address + ts.toString())
-          .digest('hex')
-          .substring(0, 40);
-      }
+      const contractAddress = await deployContract({
+        name:    c.name,
+        version: c.version,
+        code,
+        nonce
+      });
 
       deployed[c.name] = contractAddress;
       nonce++;
+      console.log(`✅`);
+      console.log(`    Address : ${contractAddress}`);
 
-      console.log(` ✅ ${contractAddress}`);
     } catch (err) {
-      console.log(` ❌ Failed: ${err.message}`);
+      console.log(`❌ ${err.message}`);
     }
   }
 
+  // Wait ONE block for all txs to confirm
+  if (Object.keys(deployed).length > 0) {
+    console.log('');
+    process.stdout.write(`  Mining    waiting for next block... `);
+    const newHeight = await waitForBlock(chainHeight, 60000);
+    console.log(newHeight ? `block #${newHeight} ✅` : `timeout ⚠ (txs may still land)`);
+  }
+
+  // Verify contracts actually landed on-chain
   console.log('');
-  console.log('═══════════════════════════════════════');
+  console.log('  Verifying on-chain...');
+  let verified = 0;
+  for (const [name, addr] of Object.entries(deployed)) {
+    try {
+      const c = await rpcGet(`/api/contracts/${addr}`);
+      if (c && c.address) {
+        console.log(`  ✅ ${name.padEnd(24)} ${addr}`);
+        verified++;
+      } else {
+        console.log(`  ⚠ ${name.padEnd(24)} ${addr} (not found yet — may still be mining)`);
+      }
+    } catch {
+      console.log(`  ⚠ ${name.padEnd(24)} ${addr} (verify manually)`);
+    }
+  }
+
+  // Summary
+  console.log('');
+  console.log('══════════════════════════════════════════');
   console.log('  Deployment Summary');
-  console.log('═══════════════════════════════════════');
+  console.log('══════════════════════════════════════════');
 
-  Object.entries(deployed).forEach(([name, addr]) => {
-    console.log(`  ${name.padEnd(22)} ${addr}`);
-  });
+  if (Object.keys(deployed).length === 0) {
+    console.log('  ❌ No contracts deployed.');
+    console.log('');
+    console.log('  Debug:');
+    console.log(`  curl https://sayman.onrender.com/api/address/${address}`);
+    console.log(`  curl https://sayman.onrender.com/api/contracts`);
+    process.exit(1);
+  }
 
-  // Save deployment manifest
-  const manifestPath = path.join(__dirname, '..', 'deployed.json');
+  for (const [name, addr] of Object.entries(deployed)) {
+    console.log(`  ${name.padEnd(24)} ${addr}`);
+  }
+
+  // Save manifest
   const manifest = {
     network,
-    rpcUrl:    RPC_URL,
-    deployer:  address,
+    rpcUrl:     RPC_URL,
+    deployer:   address,
     deployedAt: new Date().toISOString(),
-    contracts: deployed
+    contracts:  deployed
   };
+
+  const manifestPath = path.join(__dirname, '..', 'deployed.json');
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
   console.log('');
-  console.log(`📄 Manifest saved → crowdpulse/deployed.json`);
+  console.log('  📄 deployed.json saved');
+  console.log('');
+  console.log('  Verify live:');
+  console.log(`  curl https://sayman.onrender.com/api/contracts`);
   console.log('');
   console.log('  Next:');
-  console.log('  1. Copy deployed.json addresses to crowdpulse/frontend/config.js');
-  console.log('  2. cd crowdpulse/backend && node index.js');
-  console.log('  3. Open crowdpulse/frontend/index.html');
+  console.log('  1. cd backend && node index.js');
+  console.log('  2. open frontend/index.html');
   console.log('');
 }
 
 main().catch(err => {
-  console.error('Deployment failed:', err.message);
+  console.error('\n❌ Deploy crashed:', err.message);
   process.exit(1);
 });

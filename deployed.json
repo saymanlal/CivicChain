@@ -1,0 +1,11 @@
+{
+  "network": "testnet",
+  "rpcUrl": "https://sayman.onrender.com",
+  "deployer": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
+  "deployedAt": "2026-06-11T08:22:51.759Z",
+  "contracts": {
+    "ReportRegistry": "b9e9789f09edf9c24f77e96282cf77a1a4a561db",
+    "ReputationManager": "1fd2f4582844d3125e43df6e1810eac0b3f922ab",
+    "RewardManager": "7b9b01dabe136b254d1f0ea549169967dc4ef82f"
+  }
+}
