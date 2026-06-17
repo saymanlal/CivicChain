@@ -8,8 +8,9 @@ import path      from 'path';
 import { fileURLToPath } from 'url';
 import aiRouter     from './routes/ai.routes.js';
 import ipfsRouter   from './routes/ipfs.routes.js';
-import reportRouter  from './routes/report.routes.js';
-import profileRouter from './routes/profile.routes.js';
+import reportRouter    from './routes/report.routes.js';
+import profileRouter   from './routes/profile.routes.js';
+import analyticsRouter from './routes/analytics.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app       = express();
@@ -182,6 +183,9 @@ app.use('/api/report', reportRouter);
 
 // Profile endpoints          (GET /api/profile/:address/*)  ← Phase 10
 app.use('/api/profile', profileRouter);
+
+// Analytics dashboard         (GET /api/analytics/*)         ← Phase 12
+app.use('/api/analytics', analyticsRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', contracts: CONTRACTS, rpc: SAYMAN_RPC });
