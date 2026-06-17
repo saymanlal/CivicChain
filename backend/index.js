@@ -6,7 +6,9 @@ import helmet    from 'helmet';
 import fs        from 'fs';
 import path      from 'path';
 import { fileURLToPath } from 'url';
-import aiRouter  from './routes/ai.routes.js';
+import aiRouter     from './routes/ai.routes.js';
+import ipfsRouter   from './routes/ipfs.routes.js';
+import reportRouter from './routes/report.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app       = express();
@@ -168,8 +170,14 @@ function validateTx(tx) {
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-// Gemini Vision AI routes (POST /api/ai/analyze)
-app.use('/api/ai', aiRouter);
+// Gemini Vision AI routes  (POST /api/ai/analyze)
+app.use('/api/ai',     aiRouter);
+
+// IPFS / Pinata routes      (POST /api/ipfs/upload)
+app.use('/api/ipfs',   ipfsRouter);
+
+// Unified pipeline          (POST /api/report/process)  ← Phase 7
+app.use('/api/report', reportRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', contracts: CONTRACTS, rpc: SAYMAN_RPC });
