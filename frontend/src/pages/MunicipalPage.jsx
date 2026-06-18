@@ -1,0 +1,254 @@
+import { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Hammer, ClipboardList, Timer, CheckCircle2,
+  Loader2, AlertTriangle, RefreshCw, MessageSquare, XCircle, Building2,
+} from 'lucide-react';
+import { api } from '../utils/api.js';
+import { useWallet } from '../hooks/useWallet.jsx';
+
+const TABS = ['Assigned', 'In Progress', 'Completed'];
+
+const DEPT_COLOR = {
+  ROAD_DEPARTMENT:        '#3b82f6',
+  SANITATION_DEPARTMENT:  '#22c55e',
+  ELECTRICITY_DEPARTMENT: '#f59e0b',
+  DRAINAGE_DEPARTMENT:    '#06b6d4',
+  FIRE_DEPARTMENT:        '#ef4444',
+  WATER_DEPARTMENT:       '#6366f1',
+  URBAN_DEPARTMENT:       '#ec4899',
+  GENERAL_DEPARTMENT:     '#6b7280',
+};
+const SEV_COLOR = { HIGH: '#ef4444', MEDIUM: '#f59e0b', LOW: '#22c55e', CRITICAL: '#a855f7' };
+const CAT_COLOR = {
+  ROAD_DAMAGE: '#3b82f6', FLOOD: '#06b6d4', FIRE: '#ef4444',
+  STREETLIGHT: '#f59e0b', GARBAGE: '#22c55e', WATER_LEAK: '#6366f1',
+  UNSAFE_BUILDING: '#ec4899', OTHER: '#6b7280',
+};
+
+function timeAgo(ms) {
+  const d = Date.now() - ms;
+  if (d < 60_000) return 'just now';
+  if (d < 3_600_000) return `${Math.floor(d / 60_000)}m ago`;
+  if (d < 86_400_000) return `${Math.floor(d / 3_600_000)}h ago`;
+  return `${Math.floor(d / 86_400_000)}d ago`;
+}
+const short = a => a ? `${a.slice(0, 8)}…${a.slice(-6)}` : '—';
+
+function MunicipalReportCard({ report, onAction, actionLabel, actionColor, actionable }) {
+  const [note, setNote]     = useState('');
+  const [busy, setBusy]     = useState(false);
+  const [result, setResult] = useState(null);
+  const [showNote, setShowNote] = useState(false);
+
+  async function handleAction() {
+    setBusy(true); setResult(null);
+    try {
+      await onAction(report.id, note || `${actionLabel} via Municipal Dashboard`);
+      setResult({ ok: true, msg: `${actionLabel} successful` });
+    } catch (e) {
+      setResult({ ok: false, msg: e.message });
+    } finally { setBusy(false); }
+  }
+
+  const catColor = CAT_COLOR[report.category] || CAT_COLOR.OTHER;
+  const sevColor = SEV_COLOR[report.severity]  || '#6b7280';
+
+  return (
+    <motion.div className="gov-card" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+      <div className="gov-card-top">
+        <span className="rc-category" style={{ background: catColor + '22', color: catColor }}>
+          {report.category?.replace(/_/g, ' ')}
+        </span>
+        <span className="gov-card-sev" style={{ color: sevColor }}>● {report.severity}</span>
+      </div>
+      <p className="gov-card-desc">{report.description}</p>
+      <div className="gov-card-meta">
+        <span>📍 {report.location || 'Unknown'}</span>
+        <span>👤 {short(report.reporter)}</span>
+        <span>🕐 {timeAgo(report.createdAt)}</span>
+      </div>
+      <div className="gov-card-id">ID: {report.id?.slice(0, 12)}…</div>
+      <div style={{ marginTop: '0.5rem' }}>
+        <span className={`status-badge status-${report.status?.toLowerCase()}`}>{report.status}</span>
+      </div>
+
+      {actionable && !result?.ok && (
+        <>
+          <div className="gov-note-row">
+            <button className="gov-note-toggle" onClick={() => setShowNote(v => !v)}>
+              <MessageSquare size={12} /> {showNote ? 'Hide note' : 'Add note'}
+            </button>
+            <AnimatePresence>
+              {showNote && (
+                <motion.textarea
+                  initial={{ height: 0, opacity: 0 }} animate={{ height: 60, opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.18 }} className="gov-note-input"
+                  placeholder="Optional note…" value={note} onChange={e => setNote(e.target.value)}
+                />
+              )}
+            </AnimatePresence>
+          </div>
+          <button className={`gov-action-btn ${actionColor}`} onClick={handleAction} disabled={busy}>
+            {busy ? <Loader2 size={14} className="spin" /> : <Hammer size={14} />}
+            {busy ? 'Processing…' : actionLabel}
+          </button>
+        </>
+      )}
+
+      {result && (
+        <div className={`gov-result ${result.ok ? 'ok' : 'err'}`}>
+          {result.ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+          {result.msg}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+export default function MunicipalPage() {
+  const { isAuthenticated, role, department } = useWallet();
+  const [activeTab, setActiveTab] = useState('Assigned');
+  const [deptData,  setDeptData]  = useState({ reports: [], total: 0, displayName: null, noDepartment: false, message: null });
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const data = role === 'ADMIN' ? await api.reports() : await api.myDeptReports();
+      setDeptData({
+        reports:      data.reports || [],
+        total:        data.total   || 0,
+        displayName:  data.displayName || null,
+        noDepartment: data.noDepartment || false,
+        message:      data.message || null,
+      });
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [role]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (!isAuthenticated || !['MUNICIPAL_TEAM', 'ADMIN'].includes(role)) {
+    return (
+      <div className="center-page">
+        <div className="gov-access-denied">
+          <Hammer size={48} className="gov-denied-icon" />
+          <h2>Municipal Team Access Required</h2>
+          <p>This dashboard is only accessible to users with the <b>MUNICIPAL_TEAM</b> or <b>ADMIN</b> role.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const { reports, displayName, noDepartment, message } = deptData;
+  const assigned   = reports.filter(r => r.status === 'VERIFIED');
+  const inProgress = reports.filter(r => r.status === 'IN_PROGRESS');
+  const completed  = reports.filter(r => r.status === 'RESOLVED');
+  const displayMap = { Assigned: assigned, 'In Progress': inProgress, Completed: completed };
+  const current    = displayMap[activeTab] || [];
+  const deptColor  = DEPT_COLOR[department] || '#6b7280';
+
+  return (
+    <div className="page gov-page">
+      {/* Header */}
+      <div className="gov-header">
+        <div className="gov-header-left">
+          <div className="gov-title-row">
+            <Hammer size={22} className="gov-title-icon municipal" />
+            <h1 className="gov-title">Municipal Dashboard</h1>
+          </div>
+          {displayName && (
+            <div className="dept-badge-row">
+              <Building2 size={12} />
+              <span className="dept-badge" style={{ color: deptColor, background: deptColor + '15', borderColor: deptColor + '44' }}>
+                {displayName}
+              </span>
+            </div>
+          )}
+          <p className="gov-sub">Manage assigned reports and track resolution progress</p>
+        </div>
+        <button className="gov-refresh-btn" onClick={load} disabled={loading}>
+          <RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh
+        </button>
+      </div>
+
+      {/* No department notice */}
+      {noDepartment && (
+        <div className="dept-no-dept-notice">
+          <AlertTriangle size={16} />
+          <span>{message}</span>
+        </div>
+      )}
+
+      {/* Stats */}
+      {!noDepartment && (
+        <div className="gov-stats-row">
+          <div className="gov-stat">
+            <span className="gov-stat-val text-accent">{assigned.length}</span>
+            <span className="gov-stat-label">Assigned</span>
+          </div>
+          <div className="gov-stat-divider" />
+          <div className="gov-stat">
+            <span className="gov-stat-val text-warn">{inProgress.length}</span>
+            <span className="gov-stat-label">In Progress</span>
+          </div>
+          <div className="gov-stat-divider" />
+          <div className="gov-stat">
+            <span className="gov-stat-val text-success">{completed.length}</span>
+            <span className="gov-stat-label">Completed</span>
+          </div>
+        </div>
+      )}
+
+      {/* Sub-tabs */}
+      <div className="gov-tabs">
+        {TABS.map(t => {
+          const count = displayMap[t]?.length ?? 0;
+          return (
+            <button key={t} className={`gov-tab ${activeTab === t ? 'active' : ''}`} onClick={() => setActiveTab(t)}>
+              {t}
+              {count > 0 && t !== 'Completed' && <span className="gov-tab-badge">{count}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="center-loader"><Loader2 size={28} className="spin" /><span>Loading reports…</span></div>
+      ) : error ? (
+        <div className="gov-error"><AlertTriangle size={18} /> {error}</div>
+      ) : noDepartment ? (
+        <div className="empty-state">
+          <Building2 size={36} style={{ color: 'var(--muted)' }} />
+          <p>Awaiting department assignment</p>
+          <p style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Contact your administrator to be assigned to a department</p>
+        </div>
+      ) : current.length === 0 ? (
+        <div className="empty-state">
+          {activeTab === 'Completed'
+            ? <><CheckCircle2 size={36} style={{ color: 'var(--success)' }} /><p>No completed reports yet</p></>
+            : <><ClipboardList size={36} style={{ color: 'var(--muted)' }} /><p>No {activeTab.toLowerCase()} reports</p></>
+          }
+        </div>
+      ) : (
+        <div className="gov-grid">
+          {current.map(r => (
+            <MunicipalReportCard
+              key={r.id} report={r}
+              actionLabel={activeTab === 'Assigned' ? 'Start Work' : 'Mark Resolved'}
+              actionColor={activeTab === 'Assigned' ? 'start' : 'resolve'}
+              actionable={activeTab !== 'Completed'}
+              onAction={activeTab === 'Assigned'
+                ? (id, note) => api.workflowStart(id, note)
+                : (id, note) => api.workflowResolve(id, note)
+              }
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

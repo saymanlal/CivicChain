@@ -31,6 +31,19 @@ export async function importWallet(privateKey) {
   return { privateKey: privateKey.trim(), publicKey, address };
 }
 
+/**
+ * Sign the authentication challenge message.
+ * Message: sha256("CrowdPulse:" + address.toLowerCase() + ":" + nonce)
+ * Returns { r, s } — both hex strings, matching what auth.service.js verifies.
+ */
+export async function signAuthMessage(privateKey, address, nonce) {
+  const message = `CrowdPulse:${address.toLowerCase()}:${nonce}`;
+  const hash    = await sha256Hex(message);
+  const kp      = ec.keyFromPrivate(privateKey, 'hex');
+  const sig     = kp.sign(hash);
+  return { r: sig.r.toString('hex'), s: sig.s.toString('hex') };
+}
+
 async function hashTx({ type, timestamp, data, gasLimit, gasPrice, nonce }) {
   const payload = JSON.stringify({ type, timestamp, data, gasLimit, gasPrice, nonce });
   return sha256Hex(payload);
@@ -79,4 +92,4 @@ export async function buildContractCallTx({
     publicKey: wallet.publicKey,
     gasLimit, gasPrice, nonce,
   };
-}
+}

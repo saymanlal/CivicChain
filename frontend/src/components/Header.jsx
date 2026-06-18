@@ -1,16 +1,34 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Radio, Wallet, LogOut, ChevronDown, Copy, CheckCircle2 } from 'lucide-react';
+import { Radio, Wallet, LogOut, ChevronDown, Copy, CheckCircle2, ShieldCheck, Hammer, Crown } from 'lucide-react';
 import { useWallet } from '../hooks/useWallet.jsx';
 import WalletModal from './WalletModal.jsx';
 
-const TABS = ['Feed', 'Submit', 'Analytics', 'Profile'];
+// Tabs per role
+const ROLE_TABS = {
+  CITIZEN:        ['Feed', 'Submit', 'Analytics', 'Profile'],
+  AUTHORITY:      ['Feed', 'Authority', 'Analytics', 'Profile'],
+  MUNICIPAL_TEAM: ['Feed', 'Municipal', 'Analytics', 'Profile'],
+  ADMIN:          ['Feed', 'Submit', 'Analytics', 'Profile', 'Authority', 'Municipal', 'Admin'],
+};
+const DEFAULT_TABS = ['Feed', 'Submit', 'Analytics', 'Profile'];
+
+const ROLE_META = {
+  CITIZEN:        { label: 'Citizen',    cls: 'citizen',   icon: null },
+  AUTHORITY:      { label: 'Authority',  cls: 'authority', icon: ShieldCheck },
+  MUNICIPAL_TEAM: { label: 'Municipal',  cls: 'municipal', icon: Hammer },
+  ADMIN:          { label: 'Admin',      cls: 'admin',     icon: Crown },
+};
 
 export default function Header({ tab, setTab }) {
-  const { wallet, balance, reputation, disconnect } = useWallet();
+  const { wallet, balance, reputation, role, disconnect } = useWallet();
   const [showModal, setShowModal] = useState(false);
-  const [showMenu, setShowMenu]   = useState(false);
-  const [copied, setCopied]       = useState(false);
+  const [showMenu,  setShowMenu]  = useState(false);
+  const [copied,    setCopied]    = useState(false);
+
+  const tabs     = role ? (ROLE_TABS[role] || DEFAULT_TABS) : DEFAULT_TABS;
+  const roleMeta = role ? ROLE_META[role] : null;
+  const RoleIcon = roleMeta?.icon;
 
   function copyAddr() {
     navigator.clipboard.writeText(wallet.address);
@@ -18,7 +36,13 @@ export default function Header({ tab, setTab }) {
     setTimeout(() => setCopied(false), 1500);
   }
 
-  const short = addr => addr ? `${addr.slice(0,6)}…${addr.slice(-4)}` : '';
+  // If current tab no longer in role's tabs, switch to Feed
+  function handleTabChange(t) {
+    setTab(t);
+    setShowMenu(false);
+  }
+
+  const short = addr => addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '';
 
   return (
     <>
@@ -36,13 +60,13 @@ export default function Header({ tab, setTab }) {
             <span>CrowdPulse</span>
           </div>
 
-          {/* Tabs */}
+          {/* Role-based Tabs */}
           <nav className="nav-tabs">
-            {TABS.map(t => (
+            {tabs.map(t => (
               <button
                 key={t}
                 className={`nav-tab ${tab === t ? 'active' : ''}`}
-                onClick={() => setTab(t)}
+                onClick={() => handleTabChange(t)}
               >
                 {t}
                 {tab === t && (
@@ -52,12 +76,18 @@ export default function Header({ tab, setTab }) {
             ))}
           </nav>
 
-          {/* Wallet */}
+          {/* Wallet + Role */}
           {wallet ? (
             <div className="wallet-chip-wrap">
               <button className="wallet-chip" onClick={() => setShowMenu(v => !v)}>
                 <span className="wallet-dot" />
                 <span>{short(wallet.address)}</span>
+                {roleMeta && (
+                  <span className={`role-badge ${roleMeta.cls}`}>
+                    {RoleIcon && <RoleIcon size={9} />}
+                    {roleMeta.label}
+                  </span>
+                )}
                 <ChevronDown size={12} />
               </button>
               <AnimatePresence>
@@ -75,6 +105,14 @@ export default function Header({ tab, setTab }) {
                         {copied ? <CheckCircle2 size={12}/> : <Copy size={12}/>}
                       </button>
                     </div>
+                    {roleMeta && (
+                      <div className="wallet-menu-role">
+                        <span className={`role-badge ${roleMeta.cls}`} style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem' }}>
+                          {RoleIcon && <RoleIcon size={11} />}
+                          {roleMeta.label}
+                        </span>
+                      </div>
+                    )}
                     <div className="wallet-menu-stats">
                       <span>Balance <b>{balance}</b></span>
                       <span>Rep <b>{reputation}</b></span>

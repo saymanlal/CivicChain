@@ -72,7 +72,7 @@
     "updatedAt": 1781772397871
   },
   "777f946c-c2fd-42c3-be2a-337bd2c32cda": {
-    "status": "IN_PROGRESS",
+    "status": "RESOLVED",
     "reporter": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
     "notes": [
       {
@@ -84,8 +84,13 @@
         "note": "Work started via dashboard",
         "status": "IN_PROGRESS",
         "timestamp": 1781778388876
+      },
+      {
+        "note": "Mark Resolved via Municipal Dashboard",
+        "status": "RESOLVED",
+        "timestamp": 1781799816435
       }
     ],
-    "updatedAt": 1781778388876
+    "updatedAt": 1781799816435
   }
 }

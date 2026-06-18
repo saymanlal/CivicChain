@@ -1,0 +1,34 @@
+{
+  "777f946c-c2fd-42c3-be2a-337bd2c32cda": {
+    "reportId": "777f946c-c2fd-42c3-be2a-337bd2c32cda",
+    "department": "SANITATION_DEPARTMENT",
+    "category": "GARBAGE",
+    "reporter": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
+    "assignedAt": 1781782627915,
+    "status": "ASSIGNED",
+    "overriddenBy": null
+  },
+  "57aba5fd-b694-4142-b356-a00b55614e9b": {
+    "reportId": "57aba5fd-b694-4142-b356-a00b55614e9b",
+    "department": "ROAD_DEPARTMENT",
+    "category": "ROAD_DAMAGE",
+    "reporter": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
+    "assignedAt": 1781782627915,
+    "status": "ASSIGNED",
+    "overriddenBy": null
+  },
+  "test-road-001": {
+    "reportId": "test-road-001",
+    "department": "ROAD_DEPARTMENT",
+    "overriddenBy": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
+    "assignedAt": 1781782816061,
+    "status": "ASSIGNED"
+  },
+  "test-garbage-001": {
+    "reportId": "test-garbage-001",
+    "department": "SANITATION_DEPARTMENT",
+    "overriddenBy": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
+    "assignedAt": 1781782816068,
+    "status": "ASSIGNED"
+  }
+}

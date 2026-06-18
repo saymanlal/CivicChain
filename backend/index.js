@@ -6,15 +6,20 @@ import helmet    from 'helmet';
 import fs        from 'fs';
 import path      from 'path';
 import { fileURLToPath } from 'url';
-import aiRouter     from './routes/ai.routes.js';
-import ipfsRouter   from './routes/ipfs.routes.js';
+import aiRouter        from './routes/ai.routes.js';
+import ipfsRouter      from './routes/ipfs.routes.js';
 import reportRouter    from './routes/report.routes.js';
 import profileRouter   from './routes/profile.routes.js';
 import analyticsRouter from './routes/analytics.routes.js';
-import workflowRouter  from './routes/workflow.routes.js';
+import workflowRouter    from './routes/workflow.routes.js';
+import authRouter        from './routes/auth.routes.js';
+import rbacRouter        from './routes/rbac.routes.js';
+import departmentRouter  from './routes/department.routes.js';
+import assignmentRouter  from './routes/assignment.routes.js';
 import { getCache, setCache, invalidateCache, getReports } from './services/reportCache.js';
 import { getPoints } from './services/reward.service.js';
 import { getReputation } from './services/reputation.service.js';
+import { ensureAssigned, enrichReports } from './services/assignment.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app       = express();
@@ -143,6 +148,8 @@ async function scanReports() {
     deduped.sort((a, b) => b.createdAt - a.createdAt);
 
     setCache(deduped, scanTo, now);
+    // Phase 14B: auto-assign departments for newly scanned reports
+    if (newReports.length > 0) ensureAssigned(newReports);
   } catch (e) {
     if (!isProd) console.warn('scanReports error:', e.message);
   }
@@ -206,9 +213,22 @@ app.use('/api/analytics', analyticsRouter);
 // Authority workflow           (POST /api/workflow/:id/*)     ← Phase 13
 app.use('/api/workflow', workflowRouter);
 
+// Wallet authentication        (GET/POST /api/auth/*)         ← Phase 14A
+app.use('/api/auth', authRouter);
+
+// Role management              (GET/POST /api/rbac/*)         ← Phase 14A
+app.use('/api/rbac', rbacRouter);
+
+// Department routing           (GET/POST /api/departments/*)  ← Phase 14B
+app.use('/api/departments', departmentRouter);
+
+// Assignment management        (GET/POST /api/assignments/*)  ← Phase 14B
+app.use('/api/assignments', assignmentRouter);
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', contracts: CONTRACTS, rpc: SAYMAN_RPC });
 });
+
 
 app.get('/api/stats', async (_req, res) => {
   try { res.json(await rpc('/api/stats')); }
@@ -260,10 +280,13 @@ app.post('/api/broadcast', async (req, res) => {
 app.get('/api/reports', async (req, res) => {
   try {
     let reports = await scanReports();
+    ensureAssigned(reports);          // Phase 14B: auto-assign any missed reports
+    reports = enrichReports(reports); // Phase 14B: add department field
 
-    if (req.query.category) reports = reports.filter(r => r.category === req.query.category);
-    if (req.query.status)   reports = reports.filter(r => r.status   === req.query.status);
-    if (req.query.reporter) reports = reports.filter(r => r.reporter === req.query.reporter);
+    if (req.query.category)   reports = reports.filter(r => r.category   === req.query.category);
+    if (req.query.status)     reports = reports.filter(r => r.status     === req.query.status);
+    if (req.query.reporter)   reports = reports.filter(r => r.reporter   === req.query.reporter);
+    if (req.query.department) reports = reports.filter(r => r.department === req.query.department);
 
     const page     = parseInt(req.query.page     || '1');
     const pageSize = parseInt(req.query.pageSize || '20');
@@ -278,7 +301,7 @@ app.get('/api/reports', async (req, res) => {
 
 app.get('/api/reports/:id', async (req, res) => {
   try {
-    const reports = await scanReports();
+    const reports = enrichReports(await scanReports());
     const report  = reports.find(r => r.id === req.params.id || r.txId === req.params.id);
     if (!report) return res.status(404).json({ error: 'Report not found' });
     res.json(report);
@@ -363,7 +386,7 @@ app.use((err, _req, res, _next) => {
 
 app.listen(PORT, () => {
   console.log('\n╔══════════════════════════════════════╗');
-  console.log('║   CrowdPulse Backend  v2.4           ║');
+  console.log('║   CrowdPulse Backend  v2.6 (Depts)  ║');
   console.log('╚══════════════════════════════════════╝');
   console.log(`  API    → http://localhost:${PORT}`);
   console.log(`  SAYMAN → ${SAYMAN_RPC}`);
