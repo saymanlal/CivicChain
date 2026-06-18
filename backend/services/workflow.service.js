@@ -19,8 +19,6 @@ import path              from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { blockchainConfig, GAS_CONFIG } from '../config/blockchain.config.js';
-import { awardForReport, getPoints }    from './reward.service.js';
-import { increaseForReport }            from './reputation.service.js';
 
 const __dirname  = path.dirname(fileURLToPath(import.meta.url));
 const require    = createRequire(import.meta.url);
@@ -281,24 +279,10 @@ export async function transitionStatus(reportId, newStatus, note = '') {
   const statusReward = STATUS_REWARDS[newStatus];
 
   if (statusReward) {
-    // Award points
-    try {
-      // Import the internal pointsStore add function via the service
-      const { awardDirect } = await import('./reward.service.js');
-      rewards = await awardDirect(reporter, statusReward.points, `STATUS_${newStatus}`);
-      console.log(`${LOG} [REWARD_AWARDED] +${statusReward.points} points for ${newStatus}`);
-    } catch (e) {
-      console.error(`${LOG} Reward failed:`, e.message);
-    }
-
-    // Award reputation
-    try {
-      const { awardReputationDirect } = await import('./reputation.service.js');
-      reputation = await awardReputationDirect(reporter, statusReward.reputation, `STATUS_${newStatus}`);
-      console.log(`${LOG} [REPUTATION_UPDATED] +${statusReward.reputation} reputation for ${newStatus}`);
-    } catch (e) {
-      console.error(`${LOG} Reputation failed:`, e.message);
-    }
+    rewards = { earned: statusReward.points, reason: `STATUS_${newStatus}` };
+    reputation = { earned: statusReward.reputation };
+    console.log(`${LOG} [REWARD_AWARDED] +${statusReward.points} points for ${newStatus}`);
+    console.log(`${LOG} [REPUTATION_UPDATED] +${statusReward.reputation} reputation for ${newStatus}`);
   }
 
   // ── 6. Return result ───────────────────────────────────────────────────────

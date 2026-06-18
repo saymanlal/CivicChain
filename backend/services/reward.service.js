@@ -16,17 +16,13 @@
 import crypto            from 'crypto';
 import { createRequire } from 'module';
 import { blockchainConfig, GAS_CONFIG } from '../config/blockchain.config.js';
+import { getReportsForAddress } from './reportCache.js';
 
 const require  = createRequire(import.meta.url);
 const elliptic = require('elliptic');
 const ec       = new elliptic.ec('secp256k1');
 
 const LOG = '[REWARD_AWARDED]';
-
-// ─── In-Memory Points Store ───────────────────────────────────────────────────
-// Persists for the lifetime of the server process.
-// Same approach as existing /api/rewards/:address in index.js but with proper rules.
-const pointsStore = {};   // address → number
 
 // ─── Reward Rules ─────────────────────────────────────────────────────────────
 
@@ -35,11 +31,6 @@ const REWARD_RULES = [
     name:      'REPORT_CREATED',
     points:    10,
     condition: () => true,   // always awarded for a valid report
-  },
-  {
-    name:      'HIGH_CONFIDENCE',
-    points:    5,
-    condition: (analysis) => (analysis.confidence || 0) > 90,
   },
   {
     name:      'HIGH_SEVERITY',
@@ -171,9 +162,7 @@ export async function awardForReport(senderAddress, analysis) {
     return { earned: 0, reason: [] };
   }
 
-  // ── Update in-memory store ──────────────────────────────────────────────────
-  pointsStore[senderAddress] = (pointsStore[senderAddress] || 0) + totalPoints;
-  console.log(`${LOG} Total: ${totalPoints} points for [${reasons.join(', ')}]  (running total: ${pointsStore[senderAddress]})`);
+  console.log(`${LOG} Calculated: ${totalPoints} points for [${reasons.join(', ')}]`);
 
   // ── Broadcast to RewardManager on-chain (best-effort) ──────────────────────
   const contractAddr = blockchainConfig.contracts.RewardManager;
@@ -186,7 +175,7 @@ export async function awardForReport(senderAddress, analysis) {
       });
       console.log(`${LOG} ✅ On-chain addPoints broadcast:`, result.txId || result.id || 'ok');
     } catch (e) {
-      console.error(`${LOG} ⚠ On-chain addPoints failed (in-memory still updated):`, e.message);
+      console.error(`${LOG} ⚠ On-chain addPoints failed:`, e.message);
     }
   }
 
@@ -200,19 +189,26 @@ export async function awardForReport(senderAddress, analysis) {
  * @returns {{ points: number }}
  */
 export async function getPoints(address) {
-  return { points: pointsStore[address] || 0 };
-}
-
-/**
- * Directly award points to an address (used by workflow engine).
- *
- * @param {string} address
- * @param {number} points
- * @param {string} reason
- * @returns {{ earned: number, reason: string }}
- */
-export async function awardDirect(address, points, reason) {
-  pointsStore[address] = (pointsStore[address] || 0) + points;
-  console.log(`${LOG} Direct award: +${points} to ${address} for ${reason} (total: ${pointsStore[address]})`);
-  return { earned: points, reason };
+  const reports = getReportsForAddress(address);
+  let points = 0;
+  for (const r of reports) {
+    // REPORT_CREATED = +10
+    points += 10;
+    
+    // HIGH_SEVERITY = +5
+    if (r.severity === 'HIGH') {
+      points += 5;
+    }
+    
+    // VERIFIED = +5
+    if (r.status === 'VERIFIED' || r.status === 'IN_PROGRESS' || r.status === 'RESOLVED') {
+      points += 5;
+    }
+    
+    // RESOLVED = +20
+    if (r.status === 'RESOLVED') {
+      points += 20;
+    }
+  }
+  return { points };
 }

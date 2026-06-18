@@ -1,0 +1,30 @@
+{
+  "reports": [
+    {
+      "id": "777f946c-c2fd-42c3-be2a-337bd2c32cda",
+      "reporter": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
+      "category": "GARBAGE",
+      "description": "A large accumulation of overflowing trash bags and scattered plastic waste is visible on the sidewalk and street edge, indicating improper waste disposal.",
+      "location": "Unknown",
+      "severity": "HIGH",
+      "status": "OPEN",
+      "createdAt": 1781777468395,
+      "blockIndex": 1167,
+      "txId": "777f946c-c2fd-42c3-be2a-337bd2c32cda"
+    },
+    {
+      "id": "57aba5fd-b694-4142-b356-a00b55614e9b",
+      "reporter": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
+      "category": "ROAD_DAMAGE",
+      "description": "A large, deep pothole is visible in the asphalt road, posing a risk to vehicles and drivers.",
+      "location": "Unknown",
+      "severity": "HIGH",
+      "status": "OPEN",
+      "createdAt": 1781772336433,
+      "blockIndex": 140,
+      "txId": "57aba5fd-b694-4142-b356-a00b55614e9b"
+    }
+  ],
+  "lastBlock": 1418,
+  "updatedAt": 1781778723670
+}

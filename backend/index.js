@@ -12,6 +12,9 @@ import reportRouter    from './routes/report.routes.js';
 import profileRouter   from './routes/profile.routes.js';
 import analyticsRouter from './routes/analytics.routes.js';
 import workflowRouter  from './routes/workflow.routes.js';
+import { getCache, setCache, invalidateCache, getReports } from './services/reportCache.js';
+import { getPoints } from './services/reward.service.js';
+import { getReputation } from './services/reputation.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app       = express();
@@ -77,30 +80,44 @@ async function rpc(endpoint, method = 'GET', body = null, retries = 2) {
   }
 }
 
-// ─── Block scanner — extracts REPORT_CREATE txs from recent blocks ────────────
-// Cache so we don't re-fetch blocks we already have
-const reportCache = { reports: [], lastBlock: 0, updatedAt: 0 };
 const CACHE_TTL   = 15_000; // 15s
 
 async function scanReports() {
   const now = Date.now();
-  if (now - reportCache.updatedAt < CACHE_TTL) return reportCache.reports;
+  if (now - getCache().updatedAt < CACHE_TTL) return getReports();
 
   try {
     const stats      = await rpc('/api/stats');
     const latest     = stats.blocks || 0;
-    const scanFrom   = Math.max(1, reportCache.lastBlock + 1);
+    const scanFrom   = Math.max(1, getCache().lastBlock + 1);
     const scanTo     = latest;
     const newReports = [];
 
-    // Scan up to 50 new blocks per refresh to avoid hammering the RPC
-    const limit = Math.min(scanTo - scanFrom + 1, 50);
-    const start = Math.max(scanFrom, scanTo - limit + 1);
+    let start;
+    if (getCache().lastBlock === 0) {
+      start = 1;
+    } else {
+      const limit = Math.min(scanTo - scanFrom + 1, 50);
+      start = Math.max(scanFrom, scanTo - limit + 1);
+    }
 
-    for (let i = start; i <= scanTo; i++) {
-      try {
-        const block = await rpc(`/api/blocks/${i}`);
-        const txs   = block.transactions || block.data?.transactions || [];
+    const batchSize = 30;
+    for (let i = start; i <= scanTo; i += batchSize) {
+      const batchStart = i;
+      const batchEnd = Math.min(scanTo, i + batchSize - 1);
+      const promises = [];
+      for (let j = batchStart; j <= batchEnd; j++) {
+        promises.push(
+          rpc(`/api/blocks/${j}`).catch(err => {
+            if (!isProd) console.warn(`Error fetching block ${j}:`, err.message);
+            return null;
+          })
+        );
+      }
+      const blocks = await Promise.all(promises);
+      for (const block of blocks) {
+        if (!block) continue;
+        const txs = block.transactions || block.data?.transactions || [];
         for (const tx of txs) {
           if (tx.type === 'REPORT_CREATE' && tx.data) {
             newReports.push({
@@ -112,27 +129,25 @@ async function scanReports() {
               severity:    tx.data.severity   || 'MEDIUM',
               status:      'OPEN',
               createdAt:   tx.timestamp,
-              blockIndex:  block.index ?? block.height ?? i,
+              blockIndex:  block.index ?? block.height ?? block.index,
               txId:        tx.id,
             });
           }
         }
-      } catch {}
+      }
     }
 
     // Merge new with existing, dedupe by id, sort newest first
-    const all     = [...reportCache.reports, ...newReports];
+    const all     = [...getCache().reports, ...newReports];
     const deduped = Object.values(Object.fromEntries(all.map(r => [r.id, r])));
     deduped.sort((a, b) => b.createdAt - a.createdAt);
 
-    reportCache.reports   = deduped;
-    reportCache.lastBlock = scanTo;
-    reportCache.updatedAt = now;
+    setCache(deduped, scanTo, now);
   } catch (e) {
     if (!isProd) console.warn('scanReports error:', e.message);
   }
 
-  return reportCache.reports;
+  return getReports();
 }
 
 // ─── AI classifier ────────────────────────────────────────────────────────────
@@ -230,7 +245,7 @@ app.post('/api/broadcast', async (req, res) => {
     validateTx(tx);
     const result = await rpc('/api/broadcast', 'POST', tx);
     // Invalidate report cache so next feed load rescans
-    reportCache.updatedAt = 0;
+    invalidateCache();
     let ai = null;
     if (tx.type === 'REPORT_CREATE')
       ai = aiVerify(tx.data?.description, tx.data?.category);
@@ -275,26 +290,19 @@ app.get('/api/reports/:id', async (req, res) => {
 // Reputation + rewards — derived from scanned reports (contract state unavailable)
 app.get('/api/reputation/:address', async (req, res) => {
   try {
-    const reports    = await scanReports();
-    const myReports  = reports.filter(r => r.reporter === req.params.address);
-    // 10 rep per report submitted (matches ReputationManager award logic)
-    const reputation = myReports.length * 10;
-    const level      = reputation >= 200 ? 'Champion'
-                     : reputation >= 100 ? 'Elite'
-                     : reputation >= 50  ? 'Trusted'
-                     : reputation >= 10  ? 'Rising'
-                     : 'Newcomer';
-    res.json({ address: req.params.address, reputation, level });
+    await scanReports();
+    const result = await getReputation(req.params.address);
+    res.json({ address: req.params.address, reputation: result.score, level: result.level });
   } catch (e) {
-    res.status(500).json({ error: e.message, reputation: 0, level: 'Newcomer' });
+    res.status(500).json({ error: e.message, reputation: 0, level: 'NEW' });
   }
 });
 
 app.get('/api/rewards/:address', async (req, res) => {
   try {
-    const reports = await scanReports();
-    const points  = reports.filter(r => r.reporter === req.params.address).length * 10;
-    res.json({ address: req.params.address, points });
+    await scanReports();
+    const result = await getPoints(req.params.address);
+    res.json({ address: req.params.address, points: result.points });
   } catch (e) {
     res.status(500).json({ error: e.message, points: 0 });
   }
@@ -305,11 +313,13 @@ app.get('/api/leaderboard', async (_req, res) => {
     const reports = await scanReports();
     const counts  = {};
     for (const r of reports) counts[r.reporter] = (counts[r.reporter] || 0) + 1;
-    const leaderboard = Object.entries(counts)
-      .map(([address, count]) => ({ address, score: count * 10 }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 20);
-    res.json({ leaderboard });
+    const leaderboard = [];
+    for (const address of Object.keys(counts)) {
+      const { points } = await getPoints(address);
+      leaderboard.push({ address, score: points });
+    }
+    leaderboard.sort((a, b) => b.score - a.score);
+    res.json({ leaderboard: leaderboard.slice(0, 20) });
   } catch (e) {
     res.status(500).json({ error: e.message, leaderboard: [] });
   }
