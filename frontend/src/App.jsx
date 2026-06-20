@@ -4,18 +4,22 @@ import { WalletProvider } from './hooks/useWallet.jsx';
 import { useWallet } from './hooks/useWallet.jsx';
 import Header from './components/Header.jsx';
 import WalletModal from './components/WalletModal.jsx';
+import HomePage     from './pages/HomePage.jsx';
 import FeedPage      from './pages/FeedPage.jsx';
 import SubmitPage    from './pages/SubmitPage.jsx';
 import AnalyticsPage from './pages/AnalyticsPage.jsx';
+import ExplorerPage  from './pages/ExplorerPage.jsx';
 import ProfilePage   from './pages/ProfilePage.jsx';
 import AuthorityPage from './pages/AuthorityPage.jsx';
 import MunicipalPage from './pages/MunicipalPage.jsx';
 import AdminPage     from './pages/AdminPage.jsx';
 
 const PAGE_MAP = {
+  Home:      HomePage,
   Feed:      FeedPage,
   Submit:    SubmitPage,
   Analytics: AnalyticsPage,
+  Explorer:  ExplorerPage,
   Profile:   ProfilePage,
   Authority: AuthorityPage,
   Municipal: MunicipalPage,
@@ -23,32 +27,27 @@ const PAGE_MAP = {
 };
 
 // Valid tabs per role — keeps tab in sync when role changes
-const ROLE_DEFAULT_TABS = {
-  CITIZEN:        'Feed',
-  AUTHORITY:      'Feed',
-  MUNICIPAL_TEAM: 'Feed',
-  ADMIN:          'Feed',
+const ROLE_TABS = {
+  CITIZEN:        ['Home', 'Feed', 'Submit', 'Analytics', 'Explorer', 'Profile'],
+  AUTHORITY:      ['Home', 'Feed', 'Authority', 'Analytics', 'Explorer', 'Profile'],
+  MUNICIPAL_TEAM: ['Home', 'Feed', 'Municipal', 'Analytics', 'Explorer', 'Profile'],
+  ADMIN:          ['Home', 'Feed', 'Submit', 'Analytics', 'Explorer', 'Profile', 'Authority', 'Municipal', 'Admin'],
 };
 
 function AppInner() {
-  const [tab,         setTab]         = useState('Feed');
+  const [tab,         setTab]         = useState('Home');
   const [walletModal, setWalletModal] = useState(false);
   const { role } = useWallet();
 
-  // Reset to Feed if the current tab is no longer in the role's allowed tabs
+  // Reset to Home if the current tab is no longer in the role's allowed tabs
   useEffect(() => {
-    const roleTabs = {
-      CITIZEN:        ['Feed', 'Submit', 'Analytics', 'Profile'],
-      AUTHORITY:      ['Feed', 'Authority', 'Analytics', 'Profile'],
-      MUNICIPAL_TEAM: ['Feed', 'Municipal', 'Analytics', 'Profile'],
-      ADMIN:          ['Feed', 'Submit', 'Analytics', 'Profile', 'Authority', 'Municipal', 'Admin'],
-    };
-    if (role && roleTabs[role] && !roleTabs[role].includes(tab)) {
-      setTab('Feed');
+    if (role && ROLE_TABS[role] && !ROLE_TABS[role].includes(tab)) {
+      setTab('Home');
     }
   }, [role]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const Page = PAGE_MAP[tab] || FeedPage;
+  const Page    = PAGE_MAP[tab] || HomePage;
+  const isFull  = tab === 'Home';
 
   return (
     <div className="app">
@@ -58,7 +57,7 @@ function AppInner() {
 
       <Header tab={tab} setTab={setTab} />
 
-      <main className="main">
+      <main className={isFull ? 'main-full' : 'main'}>
         <AnimatePresence mode="wait">
           <motion.div
             key={tab}
@@ -68,7 +67,7 @@ function AppInner() {
             transition={{ duration: 0.18 }}
             style={{ width: '100%' }}
           >
-            <Page onConnect={() => setWalletModal(true)} />
+            <Page setTab={setTab} onConnect={() => setWalletModal(true)} />
           </motion.div>
         </AnimatePresence>
       </main>

@@ -128,7 +128,7 @@ export default function WalletModal({ onClose }) {
               </div>
             </div>
             <button className="btn-primary full" onClick={onClose}>
-              Enter CrowdPulse
+              Enter CivicChain
             </button>
           </motion.div>
         )}

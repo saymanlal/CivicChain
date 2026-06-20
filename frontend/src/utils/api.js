@@ -87,4 +87,11 @@ export const api = {
 
   // ── Phase 14C — City APIs ───────────────────────────────────────────
   cities: () => req('/api/cities'),
+
+  // ── Leaderboard (derived from analytics top-reporters) ───────────────
+  leaderboard: async () => {
+    const top = await req('/api/analytics/top-reporters');
+    const arr = Array.isArray(top) ? top : (top.topReporters || top.reporters || []);
+    return { leaderboard: arr.map(r => ({ address: r.address, score: r.points ?? r.reputation ?? r.reports ?? 0 })) };
+  },
 };

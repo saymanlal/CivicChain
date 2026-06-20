@@ -1,17 +1,17 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Radio, Wallet, LogOut, ChevronDown, Copy, CheckCircle2, ShieldCheck, Hammer, Crown } from 'lucide-react';
+import { Wallet, LogOut, ChevronDown, Copy, CheckCircle2, ShieldCheck, Hammer, Crown } from 'lucide-react';
 import { useWallet } from '../hooks/useWallet.jsx';
 import WalletModal from './WalletModal.jsx';
 
 // Tabs per role
 const ROLE_TABS = {
-  CITIZEN:        ['Feed', 'Submit', 'Analytics', 'Profile'],
-  AUTHORITY:      ['Feed', 'Authority', 'Analytics', 'Profile'],
-  MUNICIPAL_TEAM: ['Feed', 'Municipal', 'Analytics', 'Profile'],
-  ADMIN:          ['Feed', 'Submit', 'Analytics', 'Profile', 'Authority', 'Municipal', 'Admin'],
+  CITIZEN:        ['Home', 'Feed', 'Submit', 'Analytics', 'Explorer', 'Profile'],
+  AUTHORITY:      ['Home', 'Feed', 'Authority', 'Analytics', 'Explorer', 'Profile'],
+  MUNICIPAL_TEAM: ['Home', 'Feed', 'Municipal', 'Analytics', 'Explorer', 'Profile'],
+  ADMIN:          ['Home', 'Feed', 'Submit', 'Analytics', 'Explorer', 'Profile', 'Authority', 'Municipal', 'Admin'],
 };
-const DEFAULT_TABS = ['Feed', 'Submit', 'Analytics', 'Profile'];
+const DEFAULT_TABS = ['Home', 'Feed', 'Submit', 'Analytics', 'Explorer', 'Profile'];
 
 const ROLE_META = {
   CITIZEN:        { label: 'Citizen',    cls: 'citizen',   icon: null },
@@ -49,16 +49,10 @@ export default function Header({ tab, setTab }) {
       <header className="header">
         <div className="header-inner">
           {/* Logo */}
-          <div className="logo">
-            <motion.div
-              className="logo-icon"
-              animate={{ rotate: [0, 360] }}
-              transition={{ repeat: Infinity, duration: 8, ease: 'linear' }}
-            >
-              <Radio size={18} />
-            </motion.div>
-            <span>CrowdPulse</span>
-          </div>
+          <button className="logo" onClick={() => handleTabChange('Home')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>
+            <span className="logo-diamond"><span /></span>
+            <span>Civic<span className="brand-2">Chain</span></span>
+          </button>
 
           {/* Role-based Tabs */}
           <nav className="nav-tabs">
