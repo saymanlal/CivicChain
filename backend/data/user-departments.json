@@ -18,5 +18,85 @@
   "f94c82a707484d73ddcc97d3708895d1c2b81c43": {
     "department": "ROAD_DEPARTMENT",
     "city": null
+  },
+  "3b148811dd1f348291d98da23fc0d60e4a94a212": {
+    "department": "URBAN_DEPARTMENT",
+    "city": "BHOPAL"
+  },
+  "dda84bb42d92190dfe6663ef884766139c1b14d2": {
+    "department": "GENERAL_DEPARTMENT",
+    "city": "BHOPAL"
+  },
+  "a7d12ef0bed59162aab1c919eb7fe6e9181384c5": {
+    "department": "URBAN_DEPARTMENT",
+    "city": "INDORE"
+  },
+  "3990ab0ac5c40d321bb6c0f3165ca91d06e84baa": {
+    "department": "GENERAL_DEPARTMENT",
+    "city": "INDORE"
+  },
+  "683ee2668152fc818939e661a28fe05ddbc1894f": {
+    "department": "URBAN_DEPARTMENT",
+    "city": "JABALPUR"
+  },
+  "03d78e44274c6743e3ea67cf28bfe0ed17eede2e": {
+    "department": "GENERAL_DEPARTMENT",
+    "city": "JABALPUR"
+  },
+  "f1b3ab77ced0122244d9874b638068bd02cec95f": {
+    "department": "URBAN_DEPARTMENT",
+    "city": "GWALIOR"
+  },
+  "a63a0843214560fa115c39d64bd15f1787501544": {
+    "department": "GENERAL_DEPARTMENT",
+    "city": "GWALIOR"
+  },
+  "784c26109f33016d280a551adec0d07ab4dc02c5": {
+    "department": "URBAN_DEPARTMENT",
+    "city": "UJJAIN"
+  },
+  "484ccf938a630e0e54d0ae714848771ba73cc78b": {
+    "department": "GENERAL_DEPARTMENT",
+    "city": "UJJAIN"
+  },
+  "401f041b10d99b4081edd73596889c1ff8db5154": {
+    "department": "URBAN_DEPARTMENT",
+    "city": "RAIPUR"
+  },
+  "7a83f4bc3412c48c64b6395e27831b6a8fc7dbd8": {
+    "department": "GENERAL_DEPARTMENT",
+    "city": "RAIPUR"
+  },
+  "5dbc492b5554057ada75530d3244a0503dc5c0b8": {
+    "department": "URBAN_DEPARTMENT",
+    "city": "NAGPUR"
+  },
+  "98647beb6de855f268d2dd24d7431685060bf812": {
+    "department": "GENERAL_DEPARTMENT",
+    "city": "NAGPUR"
+  },
+  "dd1d571799c8763bb3cc4cca53b5f7c90d1612ce": {
+    "department": "URBAN_DEPARTMENT",
+    "city": "PUNE"
+  },
+  "cbe6846caf3386c0d92c59b7d56863c9e7042edc": {
+    "department": "GENERAL_DEPARTMENT",
+    "city": "PUNE"
+  },
+  "c75b4cef128e321ead73e33006fe3effa2dcaa54": {
+    "department": "URBAN_DEPARTMENT",
+    "city": "DELHI"
+  },
+  "106333dffe2eb775c8b4d5e1fcd928bafbe3f103": {
+    "department": "GENERAL_DEPARTMENT",
+    "city": "DELHI"
+  },
+  "10b0a855fdc5b6aa018bacee842a50af896605bb": {
+    "department": "URBAN_DEPARTMENT",
+    "city": "BENGALURU"
+  },
+  "9c43880c0df7ba9342713feb51984af74e70612f": {
+    "department": "GENERAL_DEPARTMENT",
+    "city": "BENGALURU"
   }
 }

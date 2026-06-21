@@ -15,7 +15,7 @@ const elliptic = require('elliptic');
 const ec       = new elliptic.ec('secp256k1');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const BASE      = 'http://localhost:3001';
+const BASE      = process.env.TEST_BASE || 'http://localhost:3001';
 const sha256    = s => crypto.createHash('sha256').update(s).digest('hex');
 
 // ── Test Wallets ──────────────────────────────────────────────────────────────

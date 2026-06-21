@@ -5,6 +5,8 @@ import {
   ShieldCheck, Coins, Star, MapPin, Building2, Boxes, Sparkles, ExternalLink,
 } from 'lucide-react';
 import { api } from '../utils/api.js';
+import { buildReportTx } from '../utils/crypto.js';
+import { useWallet } from '../hooks/useWallet.jsx';
 import { CountUp } from '../components/ui.jsx';
 
 const STEPS = [
@@ -56,6 +58,7 @@ export default function SubmitPage() {
   const [errMsg, setErrMsg]     = useState('');
   const [drag, setDrag]         = useState(false);
   const fileRef = useRef(null);
+  const { wallet, isAuthenticated, refresh } = useWallet();
 
   useEffect(() => { api.cities().then((d) => setCities(d.cities || [])).catch(() => {}); }, []);
 
@@ -71,15 +74,67 @@ export default function SubmitPage() {
   async function submit() {
     if (!file) return;
     if (!city) { setErrMsg('Please select a city.'); setStatus('error'); return; }
+    if (!wallet?.privateKey || !isAuthenticated) {
+      setErrMsg('Connect and sign in with your wallet to submit a report.'); setStatus('error'); return;
+    }
     setStatus('loading'); setErrMsg(''); setStep(0);
-    const timer = setInterval(() => setStep((s) => Math.min(s + 1, STEPS.length - 1)), 2600);
+    // Auto-advance the indicator through prepare phases (upload→ai→fraud→ipfs)
+    const timer = setInterval(() => setStep((s) => Math.min(s + 1, 3)), 2600);
     try {
-      const data = await api.submitReport(file, city, location);
-      clearInterval(timer); setStep(STEPS.length);
-      if (data.duplicate) { setStatus('duplicate'); setErrMsg(data.reason || 'This image has already been reported.'); setResult(data); return; }
-      setResult(data); setStatus('success');
+      // ── 1. Prepare: AI + fraud + duplicate + IPFS (no chain write) ──────────
+      const prep = await api.prepareReport(file, city, location);
+      clearInterval(timer);
+      if (prep.duplicate) {
+        setStep(STEPS.length);
+        setStatus('duplicate');
+        setErrMsg(prep.reason || 'This image has already been reported.');
+        setResult(prep);
+        return;
+      }
+
+      // ── 2. Build + sign REPORT_CREATE with the signed-in user's wallet ──────
+      setStep(4); // Blockchain
+      const { nonce } = await api.nonce(wallet.address);
+      const locationStr = typeof prep.location === 'string'
+        ? prep.location
+        : JSON.stringify(prep.location || {});
+      const tx = await buildReportTx({
+        wallet,
+        nonce,
+        category:     prep.analysis?.category,
+        severity:     prep.analysis?.severity,
+        description:  prep.description,
+        location:     locationStr,
+        evidenceHash: prep.evidence?.cid,
+      });
+
+      // ── 3. Broadcast — gas is paid from the user's own wallet ──────────────
+      const bc = await api.broadcast(tx);
+      if (!bc?.txId) throw new Error('Broadcast was not accepted by the chain.');
+
+      // ── 4. Finalize: award rewards + reputation to the reporter ────────────
+      setStep(5); // Rewards
+      const fin = await api.finalizeReport({
+        reportId:    prep.reportId,
+        sender:      wallet.address,
+        txHash:      bc.txId,
+        blockNumber: bc.result?.blockIndex ?? bc.result?.blockNumber ?? null,
+        analysis:    prep.analysis,
+        dupHash:     prep.dupHash,
+      });
+
+      setStep(STEPS.length);
+      setResult({
+        ...prep,
+        blockchain: { txHash: bc.txId, sender: wallet.address },
+        rewards:    fin.rewards,
+        reputation: fin.reputation,
+      });
+      setStatus('success');
+      refresh?.(wallet.address); // reflect gas spent in the wallet balance
     } catch (e) {
-      clearInterval(timer); setErrMsg(e.message || 'Report submission failed'); setStatus('error');
+      clearInterval(timer);
+      setErrMsg(e.message || 'Report submission failed'); setStatus('error');
     }
   }
 

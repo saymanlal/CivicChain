@@ -62,6 +62,18 @@ export const api = {
     return req('/api/report/create', { method: 'POST', body: formData });
   },
 
+  // ── Phase 16 — User-signed report flow ───────────────────────────────────
+  // prepare: AI + fraud + duplicate + IPFS (no chain write)
+  prepareReport: (file, city, address) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    if (city)    formData.append('city',    city);
+    if (address) formData.append('address', address);
+    return req('/api/report/prepare', { method: 'POST', body: formData });
+  },
+  // finalize: register hash + award rewards/reputation (after client broadcast)
+  finalizeReport: (body) => req('/api/report/finalize', { method: 'POST', body: JSON.stringify(body) }),
+
   // ── Phase 14A — Auth APIs (public) ───────────────────────────────────────
   authNonce: (address)       => req(`/api/auth/nonce/${address}`),
   authLogin: (body)          => req('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),

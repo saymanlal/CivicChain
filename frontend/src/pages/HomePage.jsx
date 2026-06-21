@@ -3,7 +3,6 @@ import { api } from '../utils/api.js';
 
 /**
  * CivicChain landing page.
- * Ported from the Claude Design `home.dc.html` (x-dc / DCLogic) into React:
  *  - Three.js scroll-forged blockchain hero (sticky 420vh track)
  *  - Reveal-on-scroll sections (Problem / Solution / Explore / One-liner)
  *  - A live "Network" section wired to the real backend (all functionalities surfaced)

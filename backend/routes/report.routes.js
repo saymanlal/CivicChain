@@ -10,6 +10,8 @@ import multer      from 'multer';
 import {
   processReportController,
   createReportController,
+  prepareReportController,
+  finalizeReportController,
 } from '../controllers/report.controller.js';
 
 const router = Router();
@@ -51,6 +53,20 @@ router.post('/process', upload.single('image'), processReportController);
  *      -F "reporter=<wallet_address>"
  */
 router.post('/create', upload.single('image'), createReportController);
+
+/**
+ * POST /api/report/prepare                                          (Phase 16)
+ * AI → fraud → duplicate → IPFS, NO chain write. Returns the data the client
+ * needs to sign + broadcast a REPORT_CREATE from the reporter's OWN wallet.
+ */
+router.post('/prepare', upload.single('image'), prepareReportController);
+
+/**
+ * POST /api/report/finalize                                         (Phase 16)
+ * Called after the client broadcasts the user-signed tx. JSON body.
+ * Registers duplicate hash + awards rewards/reputation to the reporter.
+ */
+router.post('/finalize', finalizeReportController);
 
 // ─── Multer error handler ─────────────────────────────────────────────────────
 router.use((err, _req, res, _next) => {

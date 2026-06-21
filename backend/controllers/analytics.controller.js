@@ -24,7 +24,7 @@ import {
 } from '../services/analytics.service.js';
 
 const PORT      = process.env.PORT       || 3001;
-const SAYMAN_RPC = process.env.SAYMAN_RPC || 'https://sayman.onrender.com';
+const SAYMAN_RPC = process.env.SAYMAN_RPC || 'https://sayman.up.railway.app';
 
 /**
  * Fetch all REPORT_CREATE transactions from the deployer's address on SAYMAN.

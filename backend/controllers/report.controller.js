@@ -6,7 +6,7 @@
  * Phase 14C: city + address required in createReportController
  */
 
-import { processReport, createFullReport } from '../services/report.service.js';
+import { processReport, createFullReport, prepareReport, finalizeReport } from '../services/report.service.js';
 import { isValidCity, getCityName }        from '../services/jurisdiction.service.js';
 
 const ALLOWED_MIME_TYPES = [
@@ -285,5 +285,144 @@ export async function createReportController(req, res) {
       error: err.message || 'Report creation pipeline failed.',
       ...(err.analysis ? { partialAnalysis: err.analysis } : {}),
     });
+  }
+}
+
+// ─── Phase 16 — User-signed report flow ───────────────────────────────────────
+
+/**
+ * POST /api/report/prepare
+ *
+ * Runs AI → fraud → duplicate → IPFS WITHOUT writing to the chain, and returns
+ * everything the client needs to build, sign and broadcast the REPORT_CREATE
+ * transaction from the reporter's OWN wallet (so the reporter pays the gas).
+ *
+ * Body (multipart/form-data): image (required), city (required), address.
+ */
+export async function prepareReportController(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image uploaded. Send multipart/form-data with an "image" field.' });
+    }
+
+    const { buffer, mimetype, originalname, size } = req.file;
+
+    if (!ALLOWED_MIME_TYPES.includes(mimetype)) {
+      return res.status(400).json({ error: `Unsupported file type: ${mimetype}. Allowed: ${ALLOWED_MIME_TYPES.join(', ')}` });
+    }
+    if (size > MAX_SIZE_BYTES) {
+      return res.status(400).json({ error: `File too large (${(size / 1024 / 1024).toFixed(1)} MB). Maximum: 10 MB.` });
+    }
+
+    const rawCity    = (req.body?.city    || '').trim().toUpperCase();
+    const rawAddress = (req.body?.address || '').trim();
+
+    if (!rawCity) {
+      return res.status(400).json({ error: 'city is required. Select a city from the list.' });
+    }
+    if (!isValidCity(rawCity)) {
+      return res.status(400).json({ error: `Invalid city: "${rawCity}". Use one of the supported cities.` });
+    }
+
+    const locationObj = { address: rawAddress || 'Unknown location', city: rawCity };
+
+    const meta = {
+      reporter:    req.body?.reporter    || null,
+      location:    locationObj,
+      description: req.body?.description || null,
+    };
+
+    const result = await prepareReport(buffer, mimetype, originalname, meta);
+
+    if (result.blocked) {
+      return res.status(403).json({
+        success:    false,
+        blocked:    true,
+        reportId:   result.reportId,
+        fraudScore: result.fraudScore,
+        riskLevel:  result.riskLevel,
+        reason:     result.reason,
+        analysis:   result.analysis,
+      });
+    }
+
+    if (result.duplicate) {
+      return res.status(409).json({
+        success:          false,
+        duplicate:        true,
+        reportId:         result.reportId,
+        similarity:       result.similarity,
+        existingReportId: result.existingReportId,
+        reason:           result.reason,
+      });
+    }
+
+    return res.status(200).json({
+      success:     true,
+      reportId:    result.reportId,
+      filename:    originalname,
+      sizeKb:      Math.round(size / 1024),
+      fraudScore:  result.fraud?.fraudScore ?? 0,
+      riskLevel:   result.fraud?.riskLevel  ?? 'LOW',
+      analysis:    result.analysis,
+      evidence:    result.evidence,
+      description: result.description,
+      location:    result.location,           // { address, city }
+      dupHash:     result.dupHash,
+      city:        rawCity,
+      cityName:    getCityName(rawCity),
+      address:     rawAddress || null,
+    });
+
+  } catch (err) {
+    console.error('[Report/Prepare] Pipeline error:', err.message);
+
+    if (err.message?.includes('PINATA_JWT') || err.message?.includes('GEMINI_API_KEY')) {
+      return res.status(500).json({
+        error: 'Service not configured. Check GEMINI_API_KEY and PINATA_JWT in .env',
+        ...(err.analysis ? { partialAnalysis: err.analysis } : {}),
+      });
+    }
+    if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+      return res.status(504).json({ error: 'Pipeline timed out. Try a smaller image.' });
+    }
+
+    return res.status(500).json({
+      error: err.message || 'Report preparation pipeline failed.',
+      ...(err.analysis ? { partialAnalysis: err.analysis } : {}),
+    });
+  }
+}
+
+/**
+ * POST /api/report/finalize
+ *
+ * Called after the client has broadcast the user-signed REPORT_CREATE tx.
+ * Registers the duplicate hash and awards rewards/reputation to the reporter.
+ *
+ * Body (application/json):
+ *   { reportId, sender, txHash, blockNumber?, analysis, dupHash? }
+ */
+export async function finalizeReportController(req, res) {
+  try {
+    const { reportId, sender, txHash, blockNumber, analysis, dupHash } = req.body || {};
+
+    if (!reportId || !sender || !txHash) {
+      return res.status(400).json({ error: 'reportId, sender and txHash are required.' });
+    }
+
+    const { rewards, reputation } = await finalizeReport({ reportId, sender, analysis, dupHash });
+
+    return res.status(200).json({
+      success:    true,
+      reportId,
+      blockchain: { txHash, blockNumber: blockNumber ?? null, sender },
+      rewards,
+      reputation,
+    });
+
+  } catch (err) {
+    console.error('[Report/Finalize] error:', err.message);
+    return res.status(500).json({ error: err.message || 'Report finalization failed.' });
   }
 }

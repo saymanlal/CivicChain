@@ -92,5 +92,27 @@
       }
     ],
     "updatedAt": 1781799816435
+  },
+  "f45d9c9e-9a5d-4b2f-b1f8-2154713cd0aa": {
+    "status": "RESOLVED",
+    "reporter": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
+    "notes": [
+      {
+        "note": "Verify Report via Authority Dashboard",
+        "status": "VERIFIED",
+        "timestamp": 1782025686258
+      },
+      {
+        "note": "Start Work via Municipal Dashboard",
+        "status": "IN_PROGRESS",
+        "timestamp": 1782025718336
+      },
+      {
+        "note": "Mark Resolved via Municipal Dashboard",
+        "status": "RESOLVED",
+        "timestamp": 1782025737121
+      }
+    ],
+    "updatedAt": 1782025737121
   }
 }

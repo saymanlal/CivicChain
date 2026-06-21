@@ -35,7 +35,7 @@ app.use('/api/', rateLimit({
   message: { error: 'Rate limit exceeded.' },
 }));
 
-const SAYMAN_RPC = process.env.SAYMAN_RPC || 'https://sayman.onrender.com';
+const SAYMAN_RPC = process.env.SAYMAN_RPC || 'https://sayman.up.railway.app';
 const PORT       = process.env.PORT       || 3001;
 
 let CONTRACTS = { ReportRegistry: '', ReputationManager: '', RewardManager: '' };

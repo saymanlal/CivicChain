@@ -1,6 +1,45 @@
 {
   "reports": [
     {
+      "id": "45ec253b-6634-4a84-8301-5f92c2d84e20",
+      "reporter": "7580777ca52a6ad5dc8cf864f1b90de3c21a4210",
+      "category": "ROAD_DAMAGE",
+      "description": "The image shows a severely damaged road with multiple large, water-filled potholes that pose a hazard to vehicles and pedestrians.",
+      "location": "{\"address\":\"Unknown location\",\"city\":\"INDORE\"}",
+      "city": "INDORE",
+      "severity": "HIGH",
+      "status": "OPEN",
+      "createdAt": 1782026584849,
+      "blockIndex": 715,
+      "txId": "45ec253b-6634-4a84-8301-5f92c2d84e20"
+    },
+    {
+      "id": "7bc00401-e6cb-4654-bfa1-d77265eded8e",
+      "reporter": "7580777ca52a6ad5dc8cf864f1b90de3c21a4210",
+      "category": "ROAD_DAMAGE",
+      "description": "The image clearly shows a path with numerous large potholes filled with water, indicating significant road surface damage.",
+      "location": "{\"address\":\"Unknown location\",\"city\":\"BHOPAL\"}",
+      "city": "BHOPAL",
+      "severity": "HIGH",
+      "status": "OPEN",
+      "createdAt": 1782025097521,
+      "blockIndex": 417,
+      "txId": "7bc00401-e6cb-4654-bfa1-d77265eded8e"
+    },
+    {
+      "id": "f45d9c9e-9a5d-4b2f-b1f8-2154713cd0aa",
+      "reporter": "7580777ca52a6ad5dc8cf864f1b90de3c21a4210",
+      "category": "ROAD_DAMAGE",
+      "description": "A large, water-filled pothole is visible on the road, indicating significant road damage and potential hazard to vehicles.",
+      "location": "{\"address\":\"Unknown location\",\"city\":\"PUNE\"}",
+      "city": "PUNE",
+      "severity": "HIGH",
+      "status": "OPEN",
+      "createdAt": 1782024988409,
+      "blockIndex": 396,
+      "txId": "f45d9c9e-9a5d-4b2f-b1f8-2154713cd0aa"
+    },
+    {
       "id": "777f946c-c2fd-42c3-be2a-337bd2c32cda",
       "reporter": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
       "category": "GARBAGE",
@@ -25,6 +64,6 @@
       "txId": "57aba5fd-b694-4142-b356-a00b55614e9b"
     }
   ],
-  "lastBlock": 295,
-  "updatedAt": 1781813812705
+  "lastBlock": 823,
+  "updatedAt": 1782027124986
 }

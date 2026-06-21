@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const NETWORKS = {
   local:   'http://localhost:10000',
-  testnet: 'https://sayman.onrender.com',
+  testnet: 'https://sayman.up.railway.app',
   mainnet: 'https://mainnet.sayman.io'
 };
 
@@ -242,8 +242,8 @@ async function main() {
     console.log('  ❌ No contracts deployed.');
     console.log('');
     console.log('  Debug:');
-    console.log(`  curl https://sayman.onrender.com/api/address/${address}`);
-    console.log(`  curl https://sayman.onrender.com/api/contracts`);
+    console.log(`  curl https://sayman.up.railway.app/api/address/${address}`);
+    console.log(`  curl https://sayman.up.railway.app/api/contracts`);
     process.exit(1);
   }
 
@@ -266,7 +266,7 @@ async function main() {
   console.log('  📄 deployed.json saved');
   console.log('');
   console.log('  Verify live:');
-  console.log(`  curl https://sayman.onrender.com/api/contracts`);
+  console.log(`  curl https://sayman.up.railway.app/api/contracts`);
   console.log('');
   console.log('  Next:');
   console.log('  1. cd backend && node index.js');

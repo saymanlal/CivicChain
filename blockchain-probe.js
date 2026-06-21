@@ -8,7 +8,7 @@ const require  = createRequire(import.meta.url);
 const elliptic = require('elliptic');
 const ec       = new elliptic.ec('secp256k1');
 
-const RPC = 'https://sayman.onrender.com';
+const RPC = 'https://sayman.up.railway.app';
 const sha256 = s => crypto.createHash('sha256').update(s).digest('hex');
 const DEPLOYER_PK = '78260da03d026d819f667cdddd632e6448f25bd58b86e5963e58e11a1a4f3e5d';
 const kp   = ec.keyFromPrivate(DEPLOYER_PK, 'hex');

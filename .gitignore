@@ -1,2 +1,12 @@
 .env
 node_modules
+
+# Secrets — generated wallet keys, never commit
+city-keys.json
+
+# Logs
+*-err.log
+*-run.log
+
+# Build artifacts
+frontend/dist/

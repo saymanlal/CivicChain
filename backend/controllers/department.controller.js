@@ -123,19 +123,8 @@ export function getMyReportsController(req, res) {
     const dept  = juris?.department || null;
     const city  = juris?.city       || null;
 
-    // No department → strict empty (Phase 14B behaviour retained)
-    if (!dept) {
-      return res.json({
-        reports:      [],
-        total:        0,
-        department:   null,
-        city:         null,
-        noDepartment: true,
-        message:      'No department assigned to your account. Contact your administrator.',
-      });
-    }
-
-    // Department but no city → empty + noCity flag (Phase 14C)
+    // City is the jurisdiction boundary: AUTHORITY / MUNICIPAL_TEAM see ALL
+    // issues in their city (any department). No city → nothing to show.
     if (!city) {
       return res.json({
         reports:    [],
@@ -143,19 +132,19 @@ export function getMyReportsController(req, res) {
         department: dept,
         city:       null,
         noCity:     true,
-        message:    `Department assigned (${DEPARTMENT_DISPLAY[dept] || dept}) but no city set. Contact your administrator.`,
+        message:    'No city assigned to your account. Contact your administrator.',
       });
     }
 
-    const allReports     = enrichReports(getReports());
-    const filteredReports = getReportsByJurisdiction(dept, city, allReports);
+    const allReports      = enrichReports(getReports());
+    const filteredReports  = allReports.filter(r => r.city === city);
 
     return res.json({
       reports:      filteredReports,
       total:        filteredReports.length,
       department:   dept,
       city,
-      displayName:  DEPARTMENT_DISPLAY[dept] || dept,
+      displayName:  dept ? (DEPARTMENT_DISPLAY[dept] || dept) : 'City-wide',
       cityName:     getCityName(city),
       jurisdiction: formatJurisdiction(dept, city),
     });

@@ -4,11 +4,11 @@
     "description": "CrowdPulse — Decentralised Civic Intelligence on SAYMAN Blockchain",
     "type": "module",
     "scripts": {
-        "deploy:local": "SAYMAN_RPC=https://sayman.onrender.com node scripts/deploy.js --network=local",
+        "deploy:local": "SAYMAN_RPC=https://sayman.up.railway.app node scripts/deploy.js --network=local",
         "deploy:testnet": "node scripts/deploy.js --network=testnet",
         "deploy:mainnet": "node scripts/deploy.js --network=mainnet",
         "backend": "node backend/index.js",
-        "backend:dev": "SAYMAN_RPC=https://sayman.onrender.com node backend/index.js",
+        "backend:dev": "SAYMAN_RPC=https://sayman.up.railway.app node backend/index.js",
         "frontend": "cd frontend && npm run dev",
         "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
         "dev:local": "concurrently \"npm run backend:dev\" \"npm run frontend\"",
