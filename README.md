@@ -139,3 +139,9 @@ contracts/
 frontend/
 └── src/                    # React + Vite UI
 ```
+## scripts deploy command
+
+```
+node scripts/deploy.js --network testnet
+
+```
